@@ -1,0 +1,7 @@
+[core]
+	editor = nano
+[user]
+	name = vacotr
+	email = info@vaclavotruba.cz
+[pull]
+	ff = only

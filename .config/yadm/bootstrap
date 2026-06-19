@@ -1,0 +1,212 @@
+#!/bin/bash
+
+BOOTSTRAP_D="$HOME/.config/yadm"
+
+base_packages_install=(
+    mpv
+    alacritty
+    chromium
+    gimp
+    fonts-ibm-plex
+)
+
+base_packages_remove=(
+    pix
+    baobab
+    rhythmbox
+    hypnotix
+    celluloid
+    drawing
+    simple-scan
+    gnome-calculator
+    gnome-calendar
+    gnome-terminal
+    gnome-font-viewer
+    gnome-system-monitor
+)
+
+devel_packages_install=(
+    git
+    git-lfs
+    adb
+    fastboot
+    jq
+    docker.io
+    docker-compose
+)
+
+function info() {
+  tput setaf 4
+  echo -en "$@"
+  tput sgr0
+}
+
+function warning() {
+  tput setaf 3
+  tput bold
+  echo -en "$@"
+  tput sgr0
+  sleep 0.5
+}
+
+function success() {
+  tput setaf 2
+  echo -en "$@"
+  tput sgr0
+}
+
+function code() {
+  tput dim
+  echo -en "$@"
+  tput sgr0
+}
+
+function install_packages() {
+    name=$1[@]
+    arr=("${!name}")
+
+    for app in "${arr[@]}"; do
+        if dpkg -s "$app" > /dev/null 2>&1; then
+            code "[skip] $app is already installed\n"
+        else
+            code "[+] Installing $app...\n"
+            sudo apt install -y "$app"
+        fi
+    done
+}
+
+function remove_packages() {
+    name=$1[@]
+    arr=("${!name}")
+
+    for app in "${arr[@]}"; do
+        if dpkg -s "$app" > /dev/null 2>&1; then
+            code "[-] Removing $app...\n"
+            sudo apt remove -y "$app"
+        else
+            code "[skip] $app is not installed\n"
+        fi
+    done
+}
+
+# update system
+echo
+info "Update system"
+warning " -> proceed? [Y/n]?"
+read answer
+
+if [[ $answer == [Nn] ]]; then
+    echo
+    success "Skipping\n"
+else
+    echo
+    info "Updating system...\n"
+    echo
+
+    sudo apt update -y
+
+    echo
+    success "Done\n"
+fi
+
+# base
+echo
+info "Base setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Installing apps...\n"
+    echo
+
+    install_packages base_packages_install
+
+    echo
+    info "Removing apps...\n"
+    echo
+
+    remove_packages base_packages_remove
+
+    echo
+    success "Done\n"
+else
+    echo
+    success "Skipping\n"
+fi
+
+# cinnamon
+echo
+info "Cinnamon setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Setting up cinnamon...\n"
+    echo
+
+    code "[+] Loading cinnamon settings...\n"
+    dconf load / < $BOOTSTRAP_D/cinnamon-settings.ini
+
+    echo
+    success "Done\n"
+else
+  echo
+  success "Skipping\n"
+fi
+
+# X11 config
+echo
+info "X11 setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Setting up X11 configs...\n"
+    echo
+
+    if test -f "$BOOTSTRAP_D/etc/X11/xorg.conf.d/20-amdgpu.$HOSTNAME.conf"; then
+        code "[+] Copying config file...\n"
+        sudo cp "$BOOTSTRAP_D/etc/X11/xorg.conf.d/20-amdgpu.$HOSTNAME.conf" /etc/X11/xorg.conf.d/20-amdgpu.conf
+    else
+        code "[skip] No config file for this host\n"
+    fi
+
+    echo
+    success "Done\n"
+else
+  echo
+  success "Skipping\n"
+fi
+
+# devel packages + docker + editor (vscodium/zed)
+echo
+info "Development setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Installing apps...\n"
+    echo
+
+    install_packages devel_packages_install
+
+    echo
+    info "Setting up docker...\n"
+    echo
+
+    code "[+] Adding user to docker group...\n"
+    sudo usermod -aG docker $USER
+else
+  echo
+  success "Skipping\n"
+fi
+# virt-manager
+# steam + discord + mangohud + gamescope
+
+echo
+warning "Bootstrap finished ツ\n"
+echo
