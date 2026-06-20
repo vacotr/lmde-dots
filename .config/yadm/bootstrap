@@ -35,6 +35,17 @@ devel_packages_install=(
     docker-compose
 )
 
+virtualization_packages_install=(
+    virt-manager
+    bridge-utils
+)
+
+gaming_packages_install=(
+    mangohud
+    mangohud:i386
+    libgamemodeauto0:i386
+)
+
 function info() {
   tput setaf 4
   echo -en "$@"
@@ -66,11 +77,11 @@ function install_packages() {
     arr=("${!name}")
 
     for app in "${arr[@]}"; do
-        if dpkg -s "$app" > /dev/null 2>&1; then
-            code "[skip] $app is already installed\n"
-        else
+        if [ $(dpkg-query -W -f='${Status}' $app 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
             code "[+] Installing $app...\n"
             sudo apt install -y "$app"
+        else
+            code "[skip] $app is already installed\n"
         fi
     done
 }
@@ -80,7 +91,7 @@ function remove_packages() {
     arr=("${!name}")
 
     for app in "${arr[@]}"; do
-        if dpkg -s "$app" > /dev/null 2>&1; then
+        if [ $(dpkg-query -W -f='${Status}' $app 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
             code "[-] Removing $app...\n"
             sudo apt remove -y "$app"
         else
@@ -195,17 +206,106 @@ if [[ $answer == [Yy] ]]; then
     install_packages devel_packages_install
 
     echo
+    info "Installing VSCodium...\n"
+    echo
+
+    # https://vscodium.com/#use-a-package-manager-deb-rpm-provided-by-vscodium-related-repos
+    code "[+] Adding repository and installing...\n"
+    wget -qO - https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg \
+        | gpg --dearmor \
+        | sudo dd of=/usr/share/keyrings/vscodium-archive-keyring.gpg
+
+    echo -e 'Types: deb\nURIs: https://download.vscodium.com/debs\nSuites: vscodium\nComponents: main\nArchitectures: amd64 arm64\nSigned-by: /usr/share/keyrings/vscodium-archive-keyring.gpg' \
+    | sudo tee /etc/apt/sources.list.d/vscodium.sources
+
+    sudo apt update && sudo apt install codium -y
+
+    echo
     info "Setting up docker...\n"
     echo
 
     code "[+] Adding user to docker group...\n"
     sudo usermod -aG docker $USER
+
+    echo
+    success "Done\n"
 else
   echo
   success "Skipping\n"
 fi
+
 # virt-manager
+echo
+info "Virtualization setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Installing apps...\n"
+    echo
+
+    install_packages virtualization_packages_install
+
+    echo
+    info "Setting up virt-manager...\n"
+    echo
+
+    code "[+] Adding user to libvirt and kvm group...\n"
+    sudo usermod -aG libvirt $USER
+    sudo usermod -aG kvm $USER
+
+    code "[+] Configuring virsh default network...\n"
+    sudo virsh net-autostart default
+
+    success "Done\n"
+else
+  echo
+  success "Skipping\n"
+fi
+
 # steam + discord + mangohud + gamescope
+echo
+info "Gaming setup"
+warning " -> proceed? [y/N]?"
+read answer
+
+if [[ $answer == [Yy] ]]; then
+    echo
+    info "Enabling 32bit packages...\n"
+    echo
+
+    sudo dpkg --add-architecture i386
+	sudo apt update
+
+    echo
+    info "Installing apps...\n"
+    echo
+
+    install_packages gaming_packages_install
+
+    echo
+    info "Installing steam...\n"
+    echo
+
+    code "[+] Getting deb file and installing...\n"
+	wget -O $HOME/Downloads/steam.deb https://cdn.fastly.steamstatic.com/client/installer/steam.deb -q --show-progress
+	captain $HOME/Downloads/steam.deb
+	rm $HOME/Downloads/steam.deb
+
+    echo
+    info "Installing discord...\n"
+    echo
+
+	code "[+] Installing as flatpak from flathub...\n"
+	flatpak install flathub com.discordapp.Discord -y
+
+    echo
+    success "Done\n"
+else
+  echo
+  success "Skipping\n"
+fi
 
 echo
 warning "Bootstrap finished ツ\n"
